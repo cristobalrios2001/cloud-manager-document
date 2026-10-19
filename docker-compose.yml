@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      # Solo estas tres. SIN AWS_ACCESS_KEY_ID ni AWS_SECRET_ACCESS_KEY:
+      # las credenciales llegan del IAM Instance Profile de la EC2 (IMDSv2).
+      AWS_REGION: ${AWS_REGION:?Falta AWS_REGION en el archivo .env}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:?Falta S3_BUCKET_NAME en el archivo .env}
+      PORT: "4000"
+    ports:
+      - "4000:4000"
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Se incrusta en el JS del navegador durante el build
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - app-net
+    restart: unless-stopped
+
+networks:
+  app-net:
+    driver: bridge
