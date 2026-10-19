@@ -4,7 +4,7 @@ WORKDIR /app
 COPY tsconfig*.json nest-cli.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+RUN npm run build && ls -la dist && test -f dist/main.js
 
 # ---------- Etapa 2: solo dependencias de producción ----------
 FROM node:20-alpine AS deps
