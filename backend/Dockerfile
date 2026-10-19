@@ -1,7 +1,7 @@
 # ---------- Etapa 1: compilar TypeScript ----------
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package*.json ./
+COPY tsconfig*.json nest-cli.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
