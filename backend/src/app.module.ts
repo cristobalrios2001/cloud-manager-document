@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { DocumentsModule } from './src/documents/documents.module';
-import { S3Module } from './src/s3/s3.module';
+import { DocumentsModule } from './documents/documents.module';
+import { S3Module } from './s3/s3.module';
 
 @Module({
   imports: [
