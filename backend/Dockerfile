@@ -5,7 +5,7 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build && ls -la dist && test -f dist/main.js
-x
+
 # ---------- Etapa 2: solo dependencias de producción ----------
 FROM node:20-alpine AS deps
 WORKDIR /app
