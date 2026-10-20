@@ -1,5 +1,6 @@
 import {
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -14,6 +15,11 @@ export interface DocumentItem {
   name: string;
   size: number;
   lastModified: string | null;
+}
+
+// Quita el prefijo UUID para mostrar el nombre original
+export function displayName(key: string): string {
+  return key.replace(/^[0-9a-f-]{36}-/, '');
 }
 
 const UPLOAD_URL_TTL_SECONDS = 300; // 5 min para iniciar la subida
@@ -56,8 +62,7 @@ export class S3Service {
         if (!obj.Key) continue;
         items.push({
           key: obj.Key,
-          // Quita el prefijo UUID para mostrar el nombre original
-          name: obj.Key.replace(/^[0-9a-f-]{36}-/, ''),
+          name: displayName(obj.Key),
           size: obj.Size ?? 0,
           lastModified: obj.LastModified?.toISOString() ?? null,
         });
@@ -69,6 +74,26 @@ export class S3Service {
     return items.sort((a, b) =>
       (b.lastModified ?? '').localeCompare(a.lastModified ?? ''),
     );
+  }
+
+  // Pregunta a S3 por los metadatos reales de un objeto. Devuelve null si no existe.
+  async headObject(
+    key: string,
+  ): Promise<{ size: number; contentType: string | null } | null> {
+    try {
+      const res = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return {
+        size: res.ContentLength ?? 0,
+        contentType: res.ContentType ?? null,
+      };
+    } catch (err) {
+      const status = (err as { $metadata?: { httpStatusCode?: number } })
+        .$metadata?.httpStatusCode;
+      if (status === 404) return null;
+      throw err;
+    }
   }
 
   async createUploadUrl(filename: string, fileType: string) {

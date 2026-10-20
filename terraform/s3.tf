@@ -3,17 +3,27 @@ resource "random_id" "bucket_suffix" {
 }
 
 locals {
-  bucket_name     = "${var.project_name}-${random_id.bucket_suffix.hex}"
-  frontend_origin = "http://${aws_eip.app.public_ip}:3000"
-  cors_origins    = concat([local.frontend_origin], var.extra_cors_origins)
+  bucket_name = "${var.project_name}-${random_id.bucket_suffix.hex}"
+
+  # El navegador sube y lee archivos desde el DNS del ALB: ese es el origen que S3 debe permitir
+  cors_origins = concat(["http://${aws_lb.main.dns_name}"], var.extra_cors_origins)
 }
 
 resource "aws_s3_bucket" "documents" {
   bucket        = local.bucket_name
-  force_destroy = true # PERMITE QUE terraform destroy BORRE EL BUCKET AUNQUE TENGA ARCHIVOS
+  force_destroy = true # permite que terraform destroy borre el bucket aunque tenga archivos
 }
 
-# BLOQUEA EL ACCESO PUBLICO, LOS ARCHIVOS SOLO SE PUEDEN LEER CON URLs FIRMADAS
+# La replicacion entre regiones EXIGE versionado
+resource "aws_s3_bucket_versioning" "documents" {
+  bucket = aws_s3_bucket.documents.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Bloquea el acceso publico: los archivos solo se leen con URLs firmadas
 resource "aws_s3_bucket_public_access_block" "documents" {
   bucket = aws_s3_bucket.documents.id
 
@@ -23,7 +33,6 @@ resource "aws_s3_bucket_public_access_block" "documents" {
   restrict_public_buckets = true
 }
 
-# cONFIRUGRACIÓN DEL CORS
 resource "aws_s3_bucket_cors_configuration" "documents" {
   bucket = aws_s3_bucket.documents.id
 
@@ -36,7 +45,7 @@ resource "aws_s3_bucket_cors_configuration" "documents" {
   }
 }
 
-# CONFIGURACIÓN DEL CICLO DE VIDA DE LOS ARVHICOS
+# Con versionado, borrar deja versiones viejas: tambien se expiran para no acumular costo
 resource "aws_s3_bucket_lifecycle_configuration" "documents" {
   bucket = aws_s3_bucket.documents.id
 
@@ -50,8 +59,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents" {
       days = var.object_expiration_days
     }
 
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+
     abort_incomplete_multipart_upload {
       days_after_initiation = var.multipart_abort_days
     }
   }
+
+  depends_on = [aws_s3_bucket_versioning.documents]
 }

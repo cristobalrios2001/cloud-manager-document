@@ -1,13 +1,15 @@
-# LA RED DONDE VIVE TODO
-# UN SERVIDOR AWS NECESITA UNA RED. SE CREAN 5 PIEZAS:
-# 1. VPC: RED PRIVADA VIRTUAL EN AWS, AISLADA DE LAS DEMAS
-# 2. SUBRED PUBLICA: UNA PORCION DE ESA RED DONDE PONDREMOS LA ec2
-# 3. INTERNET GATEWAY (IGW): LA "PUERTA" QUE CONECTA LA VPC CON INTERNET
-# 4. TABLA DE RUTAS: DICE "TODO EL TRAFICO HACIA INTERNET (0.0.0.0/0) SALE POR IGW". SIN ESTA RUTA, LA SUBRED NO SERIA REALMENTE PUBLICA.
-# 5. ASOCIACIÓN DE LA TABLA A LA SUBRED: CONECTA LA 2 PIEZAS ANTERIORES.
+# LA RED DONDE VIVE TODO (ahora en 2 zonas de disponibilidad)
+# - VPC con 2 subredes PUBLICAS (ALB y EC2) y 2 PRIVADAS (RDS, sin ruta a Internet)
+# - Internet Gateway y tabla de rutas publica
+# - Tabla de rutas privada SIN salida a Internet (por eso no hace falta NAT Gateway)
+# - Gateway Endpoint de S3 (gratis): el trafico a S3 no sale por Internet
 
 data "aws_availability_zones" "available" {
   state = "available"
+}
+
+locals {
+  azs = slice(data.aws_availability_zones.available.names, 0, 2)
 }
 
 resource "aws_vpc" "main" {
@@ -25,12 +27,25 @@ resource "aws_internet_gateway" "igw" {
 }
 
 resource "aws_subnet" "public" {
+  count = 2
+
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidr
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  cidr_block              = var.public_subnet_cidrs[count.index]
+  availability_zone       = local.azs[count.index]
   map_public_ip_on_launch = true
 
-  tags = { Name = "${var.project_name}-public-subnet" }
+  tags = { Name = "${var.project_name}-public-${local.azs[count.index]}" }
+}
+
+resource "aws_subnet" "private" {
+  count = 2
+
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.private_subnet_cidrs[count.index]
+  availability_zone       = local.azs[count.index]
+  map_public_ip_on_launch = false
+
+  tags = { Name = "${var.project_name}-private-${local.azs[count.index]}" }
 }
 
 resource "aws_route_table" "public" {
@@ -44,7 +59,31 @@ resource "aws_route_table" "public" {
   tags = { Name = "${var.project_name}-public-rt" }
 }
 
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  tags = { Name = "${var.project_name}-private-rt" }
+}
+
 resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
+  count = 2
+
+  subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "private" {
+  count = 2
+
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.public.id, aws_route_table.private.id]
+
+  tags = { Name = "${var.project_name}-s3-endpoint" }
 }

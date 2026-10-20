@@ -3,11 +3,18 @@ services:
     build:
       context: ./backend
     environment:
-      # Solo estas tres. SIN AWS_ACCESS_KEY_ID ni AWS_SECRET_ACCESS_KEY:
-      # las credenciales llegan del IAM Instance Profile de la EC2 (IMDSv2).
+      # Sin AWS_ACCESS_KEY_ID ni AWS_SECRET_ACCESS_KEY: las credenciales llegan del Instance Profile (IMDSv2).
       AWS_REGION: ${AWS_REGION:?Falta AWS_REGION en el archivo .env}
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:?Falta S3_BUCKET_NAME en el archivo .env}
       PORT: "4000"
+      # F2: base de datos. Vacias en la F1 (el backend las ignora si DB_HOST esta vacio).
+      DB_HOST: ${DB_HOST:-}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-documents}
+      DB_USER: ${DB_USER:-}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      # RDS exige SSL (true). Con el postgres local pon DB_SSL=false en tu .env
+      DB_SSL: ${DB_SSL:-true}
     ports:
       - "4000:4000"
     networks:
@@ -19,7 +26,8 @@ services:
       context: ./frontend
       args:
         # Se incrusta en el JS del navegador durante el build
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+        BACKEND_INTERNAL_URL: http://backend:4000
     ports:
       - "3000:3000"
     depends_on:
@@ -28,6 +36,23 @@ services:
       - app-net
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["local"]
+    enviroment:
+      POSTGRES_DB: documents
+      POSTGRES_USER: docmanager
+      POSTGRES_PASSWORD: local-dev-only
+    ports:
+      - "5432:5432"
+    volumnes:
+      - pgdata:var/lib/posgresql/data
+    networks:
+      - app-net
+
 networks:
   app-net:
     driver: bridge
+
+volumes:
+  pgdata:

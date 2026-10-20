@@ -11,6 +11,10 @@ WORKDIR /app
 # NEXT_PUBLIC_* se fija en BUILD time, por eso entra como ARG
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+# Destino de los rewrites de /api (solo se usa si no hay ALB delante)
+ARG BACKEND_INTERNAL_URL=http://backend:4000
+ENV BACKEND_INTERNAL_URL=$BACKEND_INTERNAL_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=deps /app/node_modules ./node_modules

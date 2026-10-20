@@ -5,6 +5,10 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Todas las rutas quedan bajo /api (ej: /api/health, /api/documents).
+  // El ALB envía /api/* al backend, y el resto de las rutas al frontend.
+  app.setGlobalPrefix('api');
+
   // Valida los DTOs y rechaza campos que no estén declarados
   app.useGlobalPipes(
     new ValidationPipe({
@@ -14,8 +18,8 @@ async function bootstrap() {
     }),
   );
 
-  // CORS abierto para el laboratorio (el navegador en :3000 llama a la API en :4000).
-  // En producción, restringe `origin` al dominio del frontend.
+  // Con el ALB el navegador llama a /api en el mismo origen, así que CORS ya no es necesario
+  // para el tráfico normal. Se deja abierto para el desarrollo local; en producción restringe `origin`.
   app.enableCors();
 
   app.enableShutdownHooks();
