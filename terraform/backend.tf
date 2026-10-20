@@ -3,7 +3,7 @@
 
 terraform {
   backend "s3" {
-    bucket       = "REEMPLAZA-CON-EL-OUTPUT-DE-BOOTSTRAP"
+    bucket       = "cloud-doc-manager-tfstate-4631297a"
     key          = "cloud-doc-manager/v2/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true

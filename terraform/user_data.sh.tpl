@@ -21,16 +21,31 @@ curl -fSL "https://github.com/docker/compose/releases/download/v2.29.7/docker-co
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-# ---------- Código ----------
+# ---------- Codigo ----------
 git clone --branch ${repo_branch} ${repo_url} /opt/app
 cd /opt/app
 
-# docker-compose.yml lee estas variables desde .env (sin credenciales AWS)
+%{ if enable_database ~}
+# ---------- Clave de la base: se lee de SSM con el Instance Profile (sin credenciales estaticas) ----------
+DB_PASSWORD=$(aws ssm get-parameter --name "${db_password_param}" --with-decryption \
+  --query Parameter.Value --output text --region ${ssm_region})
+
+%{ endif ~}
+# docker-compose.yml lee estas variables desde .env.
+# NEXT_PUBLIC_API_URL es una ruta relativa: el ALB envia /api/* al backend.
 cat > .env <<EOF
 AWS_REGION=${aws_region}
 S3_BUCKET_NAME=${bucket_name}
-NEXT_PUBLIC_API_URL=http://${public_ip}:4000
+NEXT_PUBLIC_API_URL=/api
+%{ if enable_database ~}
+DB_HOST=${db_host}
+DB_PORT=5432
+DB_NAME=${db_name}
+DB_USER=${db_user}
+DB_PASSWORD=$${DB_PASSWORD}
+%{ endif ~}
 EOF
+chmod 600 .env
 
 docker compose build backend
 docker compose build frontend
