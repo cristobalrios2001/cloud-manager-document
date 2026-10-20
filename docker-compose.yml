@@ -25,7 +25,7 @@ services:
     build:
       context: ./frontend
       args:
-        # Se incrusta en el JS del navegador durante el build
+        # Ruta relativa: el ALB envia /api/* al backend. En local, next.config.ts la redirige al puerto 4000.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
         BACKEND_INTERNAL_URL: http://backend:4000
     ports:
@@ -36,6 +36,8 @@ services:
       - app-net
     restart: unless-stopped
 
+  # Solo para desarrollo en tu PC:  docker compose --profile local up
+  # En AWS NO se levanta: ahi se usa RDS.
   postgres:
     image: postgres:16-alpine
     profiles: ["local"]
@@ -45,8 +47,8 @@ services:
       POSTGRES_PASSWORD: local-dev-only
     ports:
       - "5432:5432"
-    volumnes:
-      - pgdata:var/lib/posgresql/data
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     networks:
       - app-net
 
